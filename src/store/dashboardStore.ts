@@ -25,6 +25,7 @@ export interface TileConfig {
   options?: string;
   alertMin?: number;
   alertMax?: number;
+  payloadType?: "raw" | "json";
 }
 
 export interface TileData {
