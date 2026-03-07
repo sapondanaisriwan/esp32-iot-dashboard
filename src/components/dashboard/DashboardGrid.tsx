@@ -515,6 +515,24 @@ export default function DashboardGrid({
     useDashboardStore();
   const { width, containerRef, mounted } = useContainerWidth();
 
+  // const eventMessage = useMqttStore(
+  //   (state) => state.messages["vocabgame/event"],
+  // );
+
+  // useEffect(() => {
+  //   if (!eventMessage) return;
+
+  //   // try {
+  //   //   const audio = new Audio(`/audio/${eventMessage}`);
+
+  //   //   audio.play().catch((err) => {
+  //   //     console.error("Browser blocked audio autoplay:", err);
+  //   //   });
+  //   // } catch (e) {
+  //   //   console.error("Error playing audio", e);
+  //   // }
+  // }, [eventMessage]);
+
   return (
     <div ref={containerRef} className="min-h-[60vh]">
       {tiles.length === 0 ? (
