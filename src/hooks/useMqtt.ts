@@ -57,7 +57,7 @@ export const useMqtt = () => {
     // --- 2. เมื่อได้รับข้อความจาก ESP32 ---
     client.on("message", (topic, message) => {
       const payload = message.toString();
-      // console.log(`📥 Received: [${topic}] ${payload}`); // เปิดคอมเมนต์บรรทัดนี้ได้ถ้าอยากดู Log
+      console.log(`📥 Received: [${topic}] ${payload}`); // เปิดคอมเมนต์บรรทัดนี้ได้ถ้าอยากดู Log
 
       // อัปเดตค่าลง Store (เดี๋ยว UI จะขยับตามเองอัตโนมัติ)
       setMessage(topic, payload);

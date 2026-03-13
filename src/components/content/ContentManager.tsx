@@ -15,6 +15,8 @@ import {
   ArrowLeft,
   FolderPlus,
   Edit3,
+  Shuffle,
+  ListOrdered
 } from "lucide-react";
 import { useContentStore, type VocabItem } from "../../store/contentStore";
 import { useMqttStore } from "../../store/mqttDataStore";
@@ -39,6 +41,7 @@ export default function ContentManager() {
   } = useContentStore();
   const publish = useMqttStore((state) => state.publish);
 
+  const [isRandom, setIsRandom] = useState(false);
   const [activeLesson, setActiveLesson] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -71,7 +74,6 @@ export default function ContentManager() {
     }));
   }, [vocabs]);
 
-  // รวบรวมรายชื่อหมวดหมู่ทั้งหมดสำหรับ Dropdown (รวมหมวดที่เพิ่งกดสร้างแต่ยังไม่มีคำศัพท์ด้วย)
   const availableLessonsForDropdown = Array.from(
     new Set([
       ...lessonStats.map((l) => l.name),
@@ -102,7 +104,7 @@ export default function ContentManager() {
     }
 
     if (lessonModalType === "create") {
-      setActiveLesson(newName); // พาเข้าโฟลเดอร์ใหม่
+      setActiveLesson(newName);
     } else if (lessonModalType === "edit") {
       renameLesson(targetLessonName, newName);
       if (activeLesson === targetLessonName) setActiveLesson(newName);
@@ -181,8 +183,11 @@ export default function ContentManager() {
       alert("ไม่มีคำศัพท์ในหมวดนี้ กรุณาเพิ่มคำศัพท์ก่อนเริ่มเกมครับ");
       return;
     }
+
     const shuffled = [...currentLessonVocabs].sort(() => 0.5 - Math.random());
-    const selectedWords = shuffled.slice(0, 10);
+    const selectedWords = isRandom
+      ? shuffled.slice(0, 10)
+      : currentLessonVocabs.slice(0, 10);
     const payload = {
       cmd: "START_GAME",
       total: selectedWords.length,
@@ -225,7 +230,7 @@ export default function ContentManager() {
   return (
     <div className="max-w-[1600px] mx-auto p-4 sm:p-6 animate-in fade-in duration-300 relative">
       {/* ========================================== */}
-      {/* 🚀 MODALS (แยกออกมาตรงนี้แก้บั๊กพิมพ์ทีละตัว) */}
+      {/* 🚀 MODALS */}
       {/* ========================================== */}
 
       {/* 1. Modal จัดการหมวดหมู่ */}
@@ -326,7 +331,6 @@ export default function ContentManager() {
                   />
                 </div>
 
-                {/* 🌟 Dropdown ให้เลือก Lesson */}
                 <div>
                   <label className="block text-[13px] font-bold text-slate-700 mb-1.5">
                     Lesson / Category
@@ -482,7 +486,6 @@ export default function ContentManager() {
                 onClick={() => setActiveLesson(lesson.name)}
                 className="relative flex flex-col items-start justify-between h-40 bg-white border border-slate-200/80 rounded-[24px] p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] hover:shadow-lg hover:-translate-y-1 transition-all text-left group cursor-pointer"
               >
-                {/* 🌟 ปุ่ม Edit และ Delete โฟลเดอร์ที่หน้าแรก */}
                 <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
                   <button
                     onClick={(e) => {
@@ -531,7 +534,7 @@ export default function ContentManager() {
         /* 🖼️ RENDER VIEW 2: หน้าตารางคำศัพท์ */
         /* ========================================== */
         <div className="animate-in slide-in-from-right-8 duration-300">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-6">
             <div>
               <button
                 onClick={() => setActiveLesson(null)}
@@ -559,7 +562,7 @@ export default function ContentManager() {
               </div>
             </div>
 
-            <div className="flex w-full sm:w-auto items-center gap-3">
+            <div className="flex flex-wrap w-full xl:w-auto items-center gap-3">
               <div className="relative w-full sm:w-64">
                 <Search
                   size={18}
@@ -573,16 +576,52 @@ export default function ContentManager() {
                   className="w-full bg-white border border-slate-200/80 text-slate-900 rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-medium shadow-sm"
                 />
               </div>
-              <button
-                onClick={handleStartGame}
-                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold tracking-wide shadow-[0_4px_14px_rgba(16,185,129,0.3)] transition-all active:scale-[0.97] shrink-0"
-              >
-                <PlayCircle size={18} />{" "}
-                <span className="hidden sm:inline">PLAY LESSON (10)</span>
-              </button>
+
+              {/* 🌟 ชุด Control สไตล์ Modern (Toggle + Play Button) */}
+              <div className="flex items-center gap-2 p-1.5 pl-4 bg-white rounded-[16px] border border-slate-200/80 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.05)] flex-1 sm:flex-none justify-between sm:justify-start">
+                
+                {/* ปุ่ม Toggle Switch แบบใหม่ */}
+                <label className="flex items-center gap-3 cursor-pointer group mr-2">
+                  <div className="relative flex items-center">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={isRandom}
+                      onChange={(e) => setIsRandom(e.target.checked)}
+                    />
+                    {/* พื้นหลัง Toggle */}
+                    <div className={`w-[44px] h-6 rounded-full transition-all duration-300 ease-in-out shadow-inner ${isRandom ? "bg-indigo-500" : "bg-slate-200 group-hover:bg-slate-300"}`}></div>
+                    {/* วงกลมลูกกลิ้ง พร้อม Icon เปลี่ยนตามสถานะ */}
+                    <div className={`absolute left-1 bg-white w-4 h-4 rounded-full transition-all duration-300 ease-out shadow-sm flex items-center justify-center ${isRandom ? "translate-x-[20px] scale-110" : "translate-x-0"}`}>
+                      {isRandom ? (
+                        <Shuffle size={10} strokeWidth={3} className="text-indigo-500" />
+                      ) : (
+                        <ListOrdered size={10} strokeWidth={3} className="text-slate-400" />
+                      )}
+                    </div>
+                  </div>
+                  {/* ข้อความบอกสถานะ */}
+                  <div className={`text-[13px] font-extrabold tracking-wide transition-colors duration-300 select-none hidden sm:block ${isRandom ? "text-indigo-600" : "text-slate-400"}`}>
+                    RANDOM
+                  </div>
+                </label>
+
+                {/* เส้นคั่นตรงกลาง */}
+                <div className="w-px h-6 bg-slate-100 hidden sm:block"></div>
+
+                {/* ปุ่ม PLAY LESSON */}
+                <button
+                  onClick={handleStartGame}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold tracking-wide shadow-[0_4px_14px_rgba(16,185,129,0.3)] transition-all active:scale-[0.97] shrink-0"
+                >
+                  <PlayCircle size={18} />{" "}
+                  <span className="hidden sm:inline">PLAY LESSON</span>
+                </button>
+              </div>
+
               <button
                 onClick={handleAddNew}
-                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold tracking-wide shadow-[0_4px_14px_rgba(37,99,235,0.25)] transition-all active:scale-[0.97] shrink-0"
+                className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold tracking-wide shadow-[0_4px_14px_rgba(37,99,235,0.25)] transition-all active:scale-[0.97] shrink-0"
               >
                 <Plus size={18} />{" "}
                 <span className="hidden sm:inline">Add Word</span>

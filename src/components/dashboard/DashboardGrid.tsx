@@ -23,27 +23,30 @@ import {
 // 🌟 เครื่องมือแปลงข้อมูล (สำคัญมากสำหรับ JSON)
 // ==========================================
 const preparePayload = (payload: any, type?: "raw" | "json") => {
+  // MQTT ต้องการข้อมูลเป็น String เสมอ
   if (type === "json") {
     try {
       if (typeof payload === "string") {
-        // จัดการเรื่องตัวเลขและ Boolean อัตโนมัติ (เช่น Slider ส่ง "50" มา จะแปลงเป็นตัวเลข 50 ก่อนยิง JSON)
-        if (payload.toLowerCase() === "true") return true;
-        if (payload.toLowerCase() === "false") return false;
+        if (payload.toLowerCase() === "true") return "true";
+        if (payload.toLowerCase() === "false") return "false";
         if (!isNaN(Number(payload)) && payload.trim() !== "")
-          return Number(payload);
+          return String(Number(payload));
 
-        // ถ้าเป็น String ที่มีโครงสร้าง จะ Parse เป็น Object
-        return JSON.parse(payload);
+        // ตรวจสอบความถูกต้องของ JSON และจัดฟอร์แมตกลับเป็น String เสมอ
+        return JSON.stringify(JSON.parse(payload));
       }
-      return payload;
+
+      // ถ้าข้อมูลที่เข้ามาเป็น Object อยู่แล้ว ให้แปลงเป็น String ทันที
+      return JSON.stringify(payload);
     } catch (e) {
       console.warn("Payload is not valid JSON, sending as raw:", payload);
-      return payload;
+      return String(payload);
     }
   }
-  return payload; // โหมด RAW ส่งออกไปตรงๆ
-};
 
+  // โหมด RAW ให้ส่งกลับเป็น String เสมอ
+  return String(payload);
+};
 const WidgetHeader = ({ title, onEdit, onDelete, onDuplicate }: any) => (
   <div className="drag-handle group/header px-5 py-3.5 bg-slate-50/80 border-b border-slate-100 flex justify-between items-center cursor-grab active:cursor-grabbing transition-colors hover:bg-slate-100/50">
     <div className="flex items-center gap-3 overflow-hidden">
@@ -470,6 +473,73 @@ const TextTile = ({ data, onEdit, onDelete, onDuplicate }: any) => {
   const textValue = useMqttStore(
     (state) => state.messages[data.config.mqttTopic],
   );
+
+  // 🌟 ฟังก์ชันจัดการชื่อ Key ให้อ่านง่าย
+  const formatKeyName = (key: string) => {
+    return key
+      .replace(/([A-Z])/g, " $1")
+      .replace(/^./, (str) => str.toUpperCase());
+  };
+
+  // 🌟 ฟังก์ชันสร้าง UI สำหรับ JSON
+  const renderKeyValuePairs = (obj: any, depth = 0) => {
+    return Object.entries(obj).map(([key, val]) => {
+      const displayKey = formatKeyName(key);
+
+      if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+        return (
+          <div key={key} className="w-full mt-3 mb-1">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+              {displayKey}
+            </div>
+            <div className="pl-3 border-l-2 border-indigo-100 space-y-1">
+              {renderKeyValuePairs(val, depth + 1)}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div
+          key={key}
+          className="flex justify-between items-start w-full py-2 border-b border-slate-50 last:border-0"
+        >
+          <span className="text-sm font-medium text-slate-500 mr-4">
+            {displayKey}
+          </span>
+          <span
+            className={`text-sm font-bold text-right break-all ${
+              val === true
+                ? "text-emerald-500"
+                : val === false
+                  ? "text-rose-500"
+                  : "text-slate-800"
+            }`}
+          >
+            {String(val)}
+          </span>
+        </div>
+      );
+    });
+  };
+
+  // ตรวจสอบข้อมูลว่าเป็น JSON หรือไม่
+  let parsedValue = textValue;
+  let isJson = false;
+
+  if (typeof textValue === "string") {
+    try {
+      const parsed = JSON.parse(textValue);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        parsedValue = parsed;
+        isJson = true;
+      }
+    } catch (e) {}
+  } else if (typeof textValue === "object" && textValue !== null && !Array.isArray(textValue)) {
+    isJson = true;
+    parsedValue = textValue;
+  }
+
   return (
     <div className={getCardClass(false)}>
       <WidgetHeader
@@ -479,25 +549,32 @@ const TextTile = ({ data, onEdit, onDelete, onDuplicate }: any) => {
         onDuplicate={onDuplicate}
       />
       <div
-        className="cancel-drag p-6 flex-1 flex flex-col justify-center items-center cursor-default relative"
+        // 🌟 ปรับ Layout อัตโนมัติ: ถ้าเป็น JSON ให้จัดชิดบน (justify-start) ถ้าเป็น Text ปกติให้จัดกึ่งกลาง (justify-center)
+        className={`cancel-drag px-6 pb-6 pt-2 flex-1 flex flex-col cursor-default relative overflow-hidden ${
+          isJson ? "justify-start pt-12" : "justify-center items-center"
+        }`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="absolute top-4 left-4">
           <AlignLeft size={20} className="text-slate-300" />
         </div>
-        <div className="text-center w-full px-2">
-          {textValue !== undefined ? (
+
+        {textValue === undefined || textValue === null ? (
+          <span className="text-base font-medium text-slate-400 italic">
+            Waiting for data...
+          </span>
+        ) : isJson ? (
+          // 🌟 เอา max-h ออก และเปลี่ยนเป็น h-full วิ่งตามความสูงของ Widget ลากขยายได้เต็มที่!
+          <div className="w-full h-full overflow-y-auto px-1 custom-scrollbar flex flex-col items-start justify-start">
+            {renderKeyValuePairs(parsedValue)}
+          </div>
+        ) : (
+          <div className="text-center w-full px-2">
             <span className="text-2xl font-bold text-slate-800 break-words line-clamp-3">
-              {typeof textValue === "object"
-                ? JSON.stringify(textValue)
-                : String(textValue)}
+              {String(textValue)}
             </span>
-          ) : (
-            <span className="text-base font-medium text-slate-400 italic">
-              Waiting for data...
-            </span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
